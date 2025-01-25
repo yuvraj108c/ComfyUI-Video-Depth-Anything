@@ -1,0 +1,9 @@
+opencv-python
+matplotlib
+pillow
+imageio
+imageio-ffmpeg
+xformers
+einops
+easydict
+tqdm
