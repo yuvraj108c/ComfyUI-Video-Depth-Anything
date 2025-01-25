@@ -1,6 +1,6 @@
 {
-  "last_node_id": 8,
-  "last_link_id": 15,
+  "last_node_id": 9,
+  "last_link_id": 16,
   "nodes": [
     {
       "id": 4,
@@ -74,79 +74,17 @@
           "hidden": false,
           "paused": false,
           "params": {
-            "filename": "AnimateDiff_00038.mp4",
+            "filename": "AnimateDiff_00039.mp4",
             "subfolder": "",
             "type": "output",
             "format": "video/h264-mp4",
             "frame_rate": 15,
-            "workflow": "AnimateDiff_00038.png",
-            "fullpath": "/workspace/ComfyUI/output/AnimateDiff_00038.mp4"
+            "workflow": "AnimateDiff_00039.png",
+            "fullpath": "/workspace/ComfyUI/output/AnimateDiff_00039.mp4"
           },
           "muted": false
         }
       }
-    },
-    {
-      "id": 7,
-      "type": "VideoDepthAnythingProcess",
-      "pos": [
-        781.8436279296875,
-        464.59912109375
-      ],
-      "size": [
-        352.79998779296875,
-        146
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "vda_model",
-          "type": "VDAMODEL",
-          "link": 10
-        },
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 11
-        },
-        {
-          "name": "target_fps",
-          "type": "FLOAT",
-          "link": 12,
-          "widget": {
-            "name": "target_fps"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "links": [
-            15
-          ],
-          "slot_index": 0
-        },
-        {
-          "name": "fps",
-          "type": "FLOAT",
-          "links": [
-            9
-          ],
-          "slot_index": 1
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VideoDepthAnythingProcess"
-      },
-      "widgets_values": [
-        15,
-        518,
-        1280,
-        "gray"
-      ]
     },
     {
       "id": 5,
@@ -292,14 +230,76 @@
       }
     },
     {
-      "id": 1,
-      "type": "DownLoadVideoDepthAnythingModel",
+      "id": 7,
+      "type": "VideoDepthAnythingProcess",
       "pos": [
-        99.84761047363281,
-        381.3993225097656
+        781.8436279296875,
+        464.59912109375
       ],
       "size": [
-        365.6566467285156,
+        352.79998779296875,
+        146
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vda_model",
+          "type": "VDAMODEL",
+          "link": 16
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 11
+        },
+        {
+          "name": "target_fps",
+          "type": "FLOAT",
+          "link": 12,
+          "widget": {
+            "name": "target_fps"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            15
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "links": [
+            9
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VideoDepthAnythingProcess"
+      },
+      "widgets_values": [
+        15,
+        518,
+        1280,
+        "gray"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "LoadVideoDepthAnythingModel",
+      "pos": [
+        102.63522338867188,
+        377.2684326171875
+      ],
+      "size": [
+        390.5999755859375,
         58
       ],
       "flags": {},
@@ -311,12 +311,12 @@
           "name": "vda_model",
           "type": "VDAMODEL",
           "links": [
-            10
+            16
           ]
         }
       ],
       "properties": {
-        "Node name for S&R": "DownLoadVideoDepthAnythingModel"
+        "Node name for S&R": "LoadVideoDepthAnythingModel"
       },
       "widgets_values": [
         "video_depth_anything_vits.pth"
@@ -341,14 +341,6 @@
       "FLOAT"
     ],
     [
-      10,
-      1,
-      0,
-      7,
-      0,
-      "VDAMODEL"
-    ],
-    [
       11,
       3,
       0,
@@ -371,6 +363,14 @@
       4,
       0,
       "IMAGE"
+    ],
+    [
+      16,
+      9,
+      0,
+      7,
+      0,
+      "VDAMODEL"
     ]
   ],
   "groups": [],
@@ -379,8 +379,8 @@
     "ds": {
       "scale": 0.9090909090909091,
       "offset": [
-        56.1284513570547,
-        -267.42372906315404
+        82.27926457549933,
+        -190.61537889175995
       ]
     },
     "VHS_latentpreview": false,
