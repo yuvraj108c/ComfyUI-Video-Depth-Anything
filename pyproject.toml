@@ -1,0 +1,15 @@
+[project]
+name = "video-depth-anything"
+description = "This project is an unofficial ComfyUI implementation of [a/Video Depth Anything](https://github.com/DepthAnything/Video-Depth-Anything), for depth estimation on long videos without compromising quality, consistency, or generalization ability."
+version = "1.0.0"
+license = {file = "LICENSE"}
+dependencies = ["opencv-python", "matplotlib", "pillow", "imageio", "imageio-ffmpeg", "einops", "easydict", "tqdm", "huggingface_hub"]
+
+[project.urls]
+Repository = "https://github.com/yuvraj108c/ComfyUI-Video-Depth-Anything"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI-Video-Depth-Anything"
+Icon = ""
