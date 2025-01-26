@@ -28,7 +28,7 @@ pip install xformers
 
 ## Usage
 - Load [example workflow](workflows/video_depth_anything.json) 
-- Models will download automatically
+- Models will download automatically to `ComfyUI/models/videodepthanything`
 
 ## Note
 - The large model doesn't work with 24GB vram

@@ -6,3 +6,4 @@ imageio-ffmpeg
 einops
 easydict
 tqdm
+huggingface_hub
