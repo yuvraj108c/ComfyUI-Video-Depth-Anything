@@ -45,21 +45,16 @@ def postprocess_inferno(depths):
     return torch.from_numpy(np.array(depth_frames).astype(np.float32) / 255.0)
 
 def postprocess_gray(depths):
-    # Use the "gray" colormap directly
-    colormap = cm.get_cmap("gray")  # Get the grayscale colormap
     d_min, d_max = depths.min(), depths.max()
-    depth_frames = []
     
-    for i in range(depths.shape[0]):
-        depth = depths[i]
-        # Normalize depth values to the range [0, 1]
-        depth_norm = (depth - d_min) / (d_max - d_min)
-        # Map normalized depth values to grayscale colormap
-        depth_vis = (colormap(depth_norm)[:, :, :3] * 255).astype(np.uint8)  # Ignore alpha channel
-        depth_frames.append(depth_vis)
-    
-    # Convert the list of frames to a tensor and normalize to [0, 1]
-    return torch.from_numpy(np.array(depth_frames).astype(np.float32) / 255.0)
+    # global normalisation
+    depths = (depths - d_min) / (d_max - d_min + 1e-6)
+
+    # to Torch
+    tensor = torch.from_numpy(depths.astype(np.float32))  # [T,H,W]
+    tensor = tensor.unsqueeze(-1).repeat(1, 1, 1, 3)      # [T,H,W,3]
+    return tensor
+
 
 class LoadVideoDepthAnythingModel:
     @classmethod
