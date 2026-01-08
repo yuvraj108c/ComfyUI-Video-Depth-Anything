@@ -44,6 +44,8 @@ pip install -r requirements.txt
 - Load [example workflow](workflows/video_depth_anything.json) 
 - Models will download automatically to `/ComfyUI/models/videodepthanything`. 
 - You can also download them manually from the [official repository](https://github.com/DepthAnything/Video-Depth-Anything?tab=readme-ov-file#pre-trained-models) to that same directory.
+- Supported models: 'video_depth_anything_vits.pth', 'video_depth_anything_vitb.pth', 'video_depth_anything_vitl.pth', 'metric_video_depth_anything_vits.pth', 'metric_video_depth_anything_vitb.pth', 'metric_video_depth_anything_vitl.pth'
+
 
 ## Params
 - `input_size`: Input size for model inference (default=518)
