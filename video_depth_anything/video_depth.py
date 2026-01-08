@@ -67,7 +67,7 @@ class VideoDepthAnything(nn.Module):
         depth = F.relu(depth)
         return depth.squeeze(1).unflatten(0, (B, T)) # return shape [B, T, H, W]
 
-    def infer_video_depth(self, frames, target_fps, input_size=518, device='cuda', pbar=None, fp32=False):
+    def infer_video_depth(self, frames, input_size=518, device='cuda', pbar=None, fp32=False):
         frame_height, frame_width = frames[0].shape[:2]
         ratio = max(frame_height, frame_width) / min(frame_height, frame_width)
         if ratio > 1.78:  # we recommend to process video with ratio smaller than 16:9 due to memory limitation
@@ -160,5 +160,5 @@ class VideoDepthAnything(nn.Module):
 
         depth_list = depth_list_aligned
 
-        return np.stack(depth_list[:org_video_len], axis=0), target_fps
+        return np.stack(depth_list[:org_video_len], axis=0)
 

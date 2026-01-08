@@ -55,7 +55,6 @@ def postprocess_gray(depths):
     tensor = tensor.unsqueeze(-1).repeat(1, 1, 1, 3)      # [T,H,W,3]
     return tensor
 
-
 class LoadVideoDepthAnythingModel:
     @classmethod
     def INPUT_TYPES(s):
@@ -116,34 +115,78 @@ class VideoDepthAnythingProcess:
         return {"required": {
                     "vda_model": ("VDAMODEL", ),
                     "images": ("IMAGE", ),
-                    "target_fps": ("FLOAT",{"default": 24}),
                     "input_size": ("INT",{"default": 518}),
                     "max_res": ("INT",{"default": 1280}),
                     "precision": (['fp16', 'fp32'], {"default": 'fp16'}),
-                    "colormap": (['inferno', 'gray'], {"default": 'gray'}),
+
             },
         }
     
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES =("image", )
+    RETURN_TYPES = ("DEPTHS",)
+    RETURN_NAMES =("depths", )
     FUNCTION = "process"
     CATEGORY = "VideoDepthAnything"
 
-    def process(self, vda_model, images, target_fps, input_size, max_res, precision, colormap):
+    def process(self, vda_model, images, input_size, max_res, precision):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         vda_model.to(device)
         pbar = ProgressBar(images.shape[0])
-
         images_np = preprocess(images, max_res)
-
-        depths, final_fps = vda_model.infer_video_depth(images_np, input_size=input_size, device=str(device), target_fps=target_fps, pbar=pbar, fp32= True if precision == 'fp32' else False)
-
+        depths = vda_model.infer_video_depth(images_np, input_size=input_size, device=str(device), pbar=pbar, fp32= True if precision == 'fp32' else False)
         vda_model.to(offload_device)
+        return (depths,)
 
+class VideoDepthAnythingOutput:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "depths": ("DEPTHS", ),
+                    "colormap": (['inferno', 'gray'], {"default": 'gray'}),
+            },
+        }
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES =("images", )
+    FUNCTION = "output"
+    CATEGORY = "VideoDepthAnything"
+
+    def output(self, depths, colormap):
         if colormap == "inferno":
             output = postprocess_inferno(depths)
         else:
             output = postprocess_gray(depths)
 
         return (output, )
+
+class VideoDepthAnythingSaveEXR:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "depths": ("DEPTHS", ),
+                    "folder_name": ("STRING", {"default": 'exr-1', "required": True})
+            },
+        }
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES =("exr_path", )
+    FUNCTION = "save_exr"
+    CATEGORY = "VideoDepthAnything"
+    OUTPUT_NODE = True
+
+    def save_exr(self, depths, folder_name):
+        depth_exr_dir = os.path.join(folder_paths.output_directory, folder_name)
+        os.makedirs(depth_exr_dir, exist_ok=True)
+        import OpenEXR
+        import Imath
+        for i, depth in enumerate(depths):
+            output_exr = f"{depth_exr_dir}/frame_{i:05d}.exr"
+            header = OpenEXR.Header(depth.shape[1], depth.shape[0])
+            header["channels"] = {
+                "Z": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))
+            }
+            exr_file = OpenEXR.OutputFile(output_exr, header)
+            exr_file.writePixels({"Z": depth.tobytes()})
+            exr_file.close()
+
+        print(f"[VideoDepthAnything] - Saved EXR to {depth_exr_dir}")
+
+        return (depth_exr_dir,)
