@@ -61,7 +61,7 @@ class LoadVideoDepthAnythingModel:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model": (['video_depth_anything_vits.pth', 'video_depth_anything_vitl.pth'], {"default": 'video_depth_anything_vits.safetensors'})
+                "model": (['video_depth_anything_vits.pth', 'video_depth_anything_vitb.pth', 'video_depth_anything_vitl.pth'], {"default": 'video_depth_anything_vits.safetensors'})
             },
         }
 
@@ -79,32 +79,33 @@ class LoadVideoDepthAnythingModel:
             print(f"[VideoDepthAnything] - Downloading model to: {model_path}")
             from huggingface_hub import snapshot_download
 
-            if model == "video_depth_anything_vits.pth":
-                snapshot_download(repo_id="depth-anything/Video-Depth-Anything-Small", 
-                                    allow_patterns=[f"*{model}*"],
-                                    local_dir=download_path, 
-                                    local_dir_use_symlinks=False)
-            else:
-                snapshot_download(repo_id="depth-anything/Video-Depth-Anything-Large", 
-                                    allow_patterns=[f"*{model}*"],
-                                    local_dir=download_path, 
-                                    local_dir_use_symlinks=False)
+            match model:
+                case "video_depth_anything_vits.pth":
+                    repo_id = "depth-anything/Video-Depth-Anything-Small"
+                case "video_depth_anything_vitb.pth":
+                    repo_id = "depth-anything/Video-Depth-Anything-Base"
+                case "video_depth_anything_vitl.pth":
+                    repo_id = "depth-anything/Video-Depth-Anything-Large"
+
+            snapshot_download(repo_id=repo_id, allow_patterns=[f"*{model}*"], local_dir=download_path)
 
         print(f"[VideoDepthAnything] - Loading model from: {model_path}")
 
         model_configs = {
             'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+            'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
             'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
-        
         }
         if "vits" in model:
             encoder = "vits"
+        elif "vitb" in model:
+            encoder = "vitb"
         elif "vitl" in model:
             encoder = "vitl"
 
-        self.model = VideoDepthAnything(**model_configs[encoder])
+        self.model = VideoDepthAnything(**model_configs[encoder], metric=False)
         state_dict = load_torch_file(model_path)
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict, strict=True)
         self.model = self.model.to(device).eval()
         
         return (self.model,)
@@ -115,6 +116,7 @@ class VideoDepthAnythingProcess:
         return {"required": {
                     "vda_model": ("VDAMODEL", ),
                     "images": ("IMAGE", ),
+                    "target_fps": ("FLOAT",{"default": 24}),
                     "input_size": ("INT",{"default": 518}),
                     "max_res": ("INT",{"default": 1280}),
                     "precision": (['fp16', 'fp32'], {"default": 'fp16'}),
@@ -127,7 +129,7 @@ class VideoDepthAnythingProcess:
     FUNCTION = "process"
     CATEGORY = "VideoDepthAnything"
 
-    def process(self, vda_model, images, input_size, max_res, precision, colormap):
+    def process(self, vda_model, images, target_fps, input_size, max_res, precision, colormap):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         vda_model.to(device)
@@ -135,7 +137,7 @@ class VideoDepthAnythingProcess:
 
         images_np = preprocess(images, max_res)
 
-        depths = vda_model.infer_video_depth(images_np, input_size=input_size, device=device, pbar=pbar, fp32= True if precision == 'fp32' else False)
+        depths, final_fps = vda_model.infer_video_depth(images_np, input_size=input_size, device=str(device), target_fps=target_fps, pbar=pbar, fp32= True if precision == 'fp32' else False)
 
         vda_model.to(offload_device)
 

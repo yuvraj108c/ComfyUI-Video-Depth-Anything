@@ -57,12 +57,12 @@ class TemporalModule(nn.Module):
         if zero_initialize:
             self.temporal_transformer.proj_out = zero_module(self.temporal_transformer.proj_out)
 
-    def forward(self, input_tensor, encoder_hidden_states, attention_mask=None):
+    def forward(self, input_tensor, encoder_hidden_states, attention_mask=None, cached_hidden_state_list=None):
         hidden_states = input_tensor
-        hidden_states = self.temporal_transformer(hidden_states, encoder_hidden_states, attention_mask)
+        hidden_states, output_hidden_state_list = self.temporal_transformer(hidden_states, encoder_hidden_states, attention_mask, cached_hidden_state_list)
 
         output = hidden_states
-        return output
+        return output, output_hidden_state_list  # list of hidden states
 
 
 class TemporalTransformer3DModel(nn.Module):
@@ -99,8 +99,10 @@ class TemporalTransformer3DModel(nn.Module):
         )
         self.proj_out = nn.Linear(inner_dim, in_channels)
 
-    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None):
+    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, cached_hidden_state_list=None):
         assert hidden_states.dim() == 5, f"Expected hidden_states to have ndim=5, but got ndim={hidden_states.dim()}."
+        output_hidden_state_list = []
+
         video_length = hidden_states.shape[2]
         hidden_states = rearrange(hidden_states, "b c f h w -> (b f) c h w")
 
@@ -113,8 +115,14 @@ class TemporalTransformer3DModel(nn.Module):
         hidden_states = self.proj_in(hidden_states)
 
         # Transformer Blocks
-        for block in self.transformer_blocks:
-            hidden_states = block(hidden_states, encoder_hidden_states=encoder_hidden_states, video_length=video_length, attention_mask=attention_mask)
+        if cached_hidden_state_list is not None:
+            n = len(cached_hidden_state_list) // len(self.transformer_blocks)
+        else:
+            n = 0
+        for i, block in enumerate(self.transformer_blocks):
+            hidden_states, hidden_state_list = block(hidden_states, encoder_hidden_states=encoder_hidden_states, video_length=video_length, attention_mask=attention_mask,
+                                                     cached_hidden_state_list=cached_hidden_state_list[i*n:(i+1)*n] if n else None)
+            output_hidden_state_list.extend(hidden_state_list)
 
         # output
         hidden_states = self.proj_out(hidden_states)
@@ -123,7 +131,7 @@ class TemporalTransformer3DModel(nn.Module):
         output = hidden_states + residual
         output = rearrange(output, "(b f) c h w -> b c f h w", f=video_length)
 
-        return output
+        return output, output_hidden_state_list
 
 
 class TemporalTransformerBlock(nn.Module):
@@ -161,20 +169,24 @@ class TemporalTransformerBlock(nn.Module):
         self.ff_norm = nn.LayerNorm(dim)
 
 
-    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None):
-        for attention_block, norm in zip(self.attention_blocks, self.norms):
+    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None, cached_hidden_state_list=None):
+        output_hidden_state_list = []
+        for i, (attention_block, norm) in enumerate(zip(self.attention_blocks, self.norms)):
             norm_hidden_states = norm(hidden_states)
-            hidden_states = attention_block(
+            residual_hidden_states, output_hidden_states = attention_block(
                 norm_hidden_states,
                 encoder_hidden_states=encoder_hidden_states,
                 video_length=video_length,
                 attention_mask=attention_mask,
-            ) + hidden_states
+                cached_hidden_states=cached_hidden_state_list[i] if cached_hidden_state_list is not None else None,
+            )
+            hidden_states = residual_hidden_states + hidden_states
+            output_hidden_state_list.append(output_hidden_states)
 
         hidden_states = self.ff(self.ff_norm(hidden_states)) + hidden_states
 
         output = hidden_states
-        return output
+        return output, output_hidden_state_list
 
 
 class PositionalEncoding(nn.Module):
@@ -227,9 +239,21 @@ class TemporalAttention(CrossAttention):
         else:
             raise NotImplementedError
 
-    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None):
+    def forward(self, hidden_states, encoder_hidden_states=None, attention_mask=None, video_length=None, cached_hidden_states=None):
+        # TODO: support cache for these
+        assert encoder_hidden_states is None
+        assert attention_mask is None
+
         d = hidden_states.shape[1]
-        hidden_states = rearrange(hidden_states, "(b f) d c -> (b d) f c", f=video_length)
+        d_in = 0
+        if cached_hidden_states is None:
+            hidden_states = rearrange(hidden_states, "(b f) d c -> (b d) f c", f=video_length)
+            input_hidden_states = hidden_states  # (bxd) f c
+        else:
+            hidden_states = rearrange(hidden_states, "(b f) d c -> (b d) f c", f=1)
+            input_hidden_states = hidden_states
+            d_in = cached_hidden_states.shape[1]
+            hidden_states = torch.cat([cached_hidden_states, hidden_states], dim=1)
 
         if self.pos_encoder is not None:
             hidden_states = self.pos_encoder(hidden_states)
@@ -239,7 +263,7 @@ class TemporalAttention(CrossAttention):
         if self.group_norm is not None:
             hidden_states = self.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
-        query = self.to_q(hidden_states)
+        query = self.to_q(hidden_states[:, d_in:, ...])
         dim = query.shape[-1]
 
         if self.added_kv_proj_dim is not None:
@@ -294,4 +318,4 @@ class TemporalAttention(CrossAttention):
 
         hidden_states = rearrange(hidden_states, "(b d) f c -> (b f) d c", d=d)
 
-        return hidden_states
+        return hidden_states, input_hidden_states

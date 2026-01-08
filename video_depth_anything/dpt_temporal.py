@@ -50,7 +50,7 @@ class DPTHeadTemporal(DPTHead):
                            **motion_module_kwargs)
         ])
 
-    def forward(self, out_features, patch_h, patch_w, frame_length, device="cuda"):
+    def forward(self, out_features, patch_h, patch_w, frame_length, micro_batch_size=4, cached_hidden_state_list=None):
         out = []
         for i, x in enumerate(out_features):
             if self.use_clstoken:
@@ -71,9 +71,15 @@ class DPTHeadTemporal(DPTHead):
         layer_1, layer_2, layer_3, layer_4 = out
 
         B, T = layer_1.shape[0] // frame_length, frame_length
+        if cached_hidden_state_list is not None:
+            N = len(cached_hidden_state_list) // len(self.motion_modules)
+        else:
+            N = 0
 
-        layer_3 = self.motion_modules[0](layer_3.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None).permute(0, 2, 1, 3, 4).flatten(0, 1)
-        layer_4 = self.motion_modules[1](layer_4.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None).permute(0, 2, 1, 3, 4).flatten(0, 1)
+        layer_3, h0 = self.motion_modules[0](layer_3.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None, cached_hidden_state_list[0:N] if N else None)
+        layer_3 = layer_3.permute(0, 2, 1, 3, 4).flatten(0, 1)
+        layer_4, h1 = self.motion_modules[1](layer_4.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None, cached_hidden_state_list[N:2*N] if N else None)
+        layer_4 = layer_4.permute(0, 2, 1, 3, 4).flatten(0, 1)
 
         layer_1_rn = self.scratch.layer1_rn(layer_1)
         layer_2_rn = self.scratch.layer2_rn(layer_2)
@@ -81,18 +87,39 @@ class DPTHeadTemporal(DPTHead):
         layer_4_rn = self.scratch.layer4_rn(layer_4)
 
         path_4 = self.scratch.refinenet4(layer_4_rn, size=layer_3_rn.shape[2:])
-        path_4 = self.motion_modules[2](path_4.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None).permute(0, 2, 1, 3, 4).flatten(0, 1)
+        path_4, h2 = self.motion_modules[2](path_4.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None, cached_hidden_state_list[2*N:3*N] if N else None)
+        path_4 = path_4.permute(0, 2, 1, 3, 4).flatten(0, 1)
         path_3 = self.scratch.refinenet3(path_4, layer_3_rn, size=layer_2_rn.shape[2:])
-        path_3 = self.motion_modules[3](path_3.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None).permute(0, 2, 1, 3, 4).flatten(0, 1)
-        path_2 = self.scratch.refinenet2(path_3, layer_2_rn, size=layer_1_rn.shape[2:])
-        path_1 = self.scratch.refinenet1(path_2, layer_1_rn)
+        path_3, h3 = self.motion_modules[3](path_3.unflatten(0, (B, T)).permute(0, 2, 1, 3, 4), None, None, cached_hidden_state_list[3*N:] if N else None)
+        path_3 = path_3.permute(0, 2, 1, 3, 4).flatten(0, 1)
 
-        out = self.scratch.output_conv1(path_1)
-        out = F.interpolate(
-            out, (int(patch_h * 14), int(patch_w * 14)), mode="bilinear", align_corners=True
-        )
-        ori_type = out.dtype
-        with torch.autocast(device_type=device, enabled=False):
-            out = self.scratch.output_conv2(out.float())
+        batch_size = layer_1_rn.shape[0]
+        if batch_size <= micro_batch_size or batch_size % micro_batch_size != 0:
+            path_2 = self.scratch.refinenet2(path_3, layer_2_rn, size=layer_1_rn.shape[2:])
+            path_1 = self.scratch.refinenet1(path_2, layer_1_rn)
 
-        return out.to(ori_type)
+            out = self.scratch.output_conv1(path_1)
+            out = F.interpolate(
+                out, (int(patch_h * 14), int(patch_w * 14)), mode="bilinear", align_corners=True
+            )
+            ori_type = out.dtype
+            with torch.autocast(device_type="cuda", enabled=False):
+                out = self.scratch.output_conv2(out.float())
+
+            output = out.to(ori_type) 
+        else:
+            ret = []
+            for i in range(0, batch_size, micro_batch_size):
+                path_2 = self.scratch.refinenet2(path_3[i:i + micro_batch_size], layer_2_rn[i:i + micro_batch_size], size=layer_1_rn[i:i + micro_batch_size].shape[2:])
+                path_1 = self.scratch.refinenet1(path_2, layer_1_rn[i:i + micro_batch_size])
+                out = self.scratch.output_conv1(path_1)
+                out = F.interpolate(
+                    out, (int(patch_h * 14), int(patch_w * 14)), mode="bilinear", align_corners=True
+                )
+                ori_type = out.dtype
+                with torch.autocast(device_type="cuda", enabled=False):
+                    out = self.scratch.output_conv2(out.float())
+                ret.append(out.to(ori_type))
+            output = torch.cat(ret, dim=0)
+        
+        return output, h0 + h1 + h2 + h3
