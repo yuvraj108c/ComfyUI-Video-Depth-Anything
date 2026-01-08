@@ -40,17 +40,18 @@ pip install -r requirements.txt
 
 ## Usage
 - Load [example workflow](workflows/video_depth_anything.json) 
-- Models will download automatically to `ComfyUI/models/videodepthanything`
+- Models will download automatically to `/ComfyUI/models/videodepthanything`. 
+- You can also download them manually from the [official repository](https://github.com/DepthAnything/Video-Depth-Anything) to that same directory.
 
 ## Params
-- `input_size`: Input size for model inference
-- `max_res`: Maximum resolution for model inference
-- `precision`: Precision for inference (FP16/FP32)
+- `input_size`: Input size for model inference (default=518)
+- `max_res`: Maximum resolution for model inference (default=1280)
+- `precision`: Precision for inference (default=fp16)
 
 ## Changelog
 
 **8 January 2026**
-- Support vitb model
+- Support vitb and metric models
 - Save EXR
 
 **9 February 2025**

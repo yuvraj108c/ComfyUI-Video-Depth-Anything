@@ -60,7 +60,7 @@ class LoadVideoDepthAnythingModel:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model": (['video_depth_anything_vits.pth', 'video_depth_anything_vitb.pth', 'video_depth_anything_vitl.pth'], {"default": 'video_depth_anything_vits.safetensors'})
+                "model": (['video_depth_anything_vits.pth', 'video_depth_anything_vitb.pth', 'video_depth_anything_vitl.pth', 'metric_video_depth_anything_vits.pth', 'metric_video_depth_anything_vitb.pth', 'metric_video_depth_anything_vitl.pth'], {"default": 'video_depth_anything_vits.safetensors'})
             },
         }
 
@@ -85,6 +85,12 @@ class LoadVideoDepthAnythingModel:
                     repo_id = "depth-anything/Video-Depth-Anything-Base"
                 case "video_depth_anything_vitl.pth":
                     repo_id = "depth-anything/Video-Depth-Anything-Large"
+                case "metric_video_depth_anything_vits.pth":
+                    repo_id = "depth-anything/Metric-Video-Depth-Anything-Small"
+                case "metric_video_depth_anything_vitb.pth":
+                    repo_id = "depth-anything/Metric-Video-Depth-Anything-Base"
+                case "metric_video_depth_anything_vitl.pth":
+                    repo_id = "depth-anything/Metric-Video-Depth-Anything-Large"
 
             snapshot_download(repo_id=repo_id, allow_patterns=[f"*{model}*"], local_dir=download_path)
 
@@ -102,7 +108,7 @@ class LoadVideoDepthAnythingModel:
         elif "vitl" in model:
             encoder = "vitl"
 
-        self.model = VideoDepthAnything(**model_configs[encoder], metric=False)
+        self.model = VideoDepthAnything(**model_configs[encoder], metric="metric" in model)
         state_dict = load_torch_file(model_path)
         self.model.load_state_dict(state_dict, strict=True)
         self.model = self.model.to(device).eval()
