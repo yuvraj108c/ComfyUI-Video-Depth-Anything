@@ -6,6 +6,8 @@
 
 This project is an unofficial ComfyUI implementation of [Video Depth Anything](https://github.com/DepthAnything/Video-Depth-Anything),  for depth estimation on long videos without compromising quality, consistency, or generalization ability.
 
+**Last tested**: 8 January 2026 (ComfyUI v0.8.2@a60b7b8 | Torch 2.9.1 | Python 3.12.3 | RTX5090 | CUDA 13.0 | Ubuntu 24.04)
+
 ![0126-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/2db00d84-9de3-434b-a36b-1981f4399e09)
 
 </div>
@@ -38,22 +40,24 @@ cd ./ComfyUI-Video-Depth-Anything
 pip install -r requirements.txt
 ```
 
-Xformers (optional)
-```bash
-pip install xformers
-```
-
 ## Usage
 - Load [example workflow](workflows/video_depth_anything.json) 
-- Models will download automatically to `ComfyUI/models/videodepthanything`
+- Models will download automatically to `/ComfyUI/models/videodepthanything`. 
+- You can also download them manually from the [official repository](https://github.com/DepthAnything/Video-Depth-Anything?tab=readme-ov-file#pre-trained-models) to that same directory.
 
-## Note
-- The large model doesn't work with 24GB vram
+## Params
+- `input_size`: Input size for model inference (default=518)
+- `max_res`: Maximum resolution for model inference (default=1280)
+- `precision`: Precision for inference (default=fp16)
 
 ## Changelog
+
+**8 January 2026**
+- Support vitb and metric models
+- Save EXR
+
 **9 February 2025**
 - Support autocast inference, minor cleanups
-
 
 ## Citation
 
@@ -67,4 +71,5 @@ pip install xformers
 ```
 ## LICENSE
 - Video-Depth-Anything-Small model is under the Apache-2.0 license. 
+- Video-Depth-Anything-Base model is under the CC-BY-NC-4.0 license.
 - Video-Depth-Anything-Large model is under the CC-BY-NC-4.0 license.

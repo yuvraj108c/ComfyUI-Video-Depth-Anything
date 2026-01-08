@@ -7,3 +7,5 @@ einops
 easydict
 tqdm
 huggingface_hub
+Imath
+OpenEXR
