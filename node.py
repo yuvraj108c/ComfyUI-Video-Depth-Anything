@@ -118,30 +118,104 @@ class LoadVideoDepthAnythingModel:
 class VideoDepthAnythingProcess:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {
-                    "vda_model": ("VDAMODEL", ),
-                    "images": ("IMAGE", ),
-                    "input_size": ("INT",{"default": 518}),
-                    "max_res": ("INT",{"default": 1280}),
-                    "precision": (['fp16', 'fp32'], {"default": 'fp16'}),
-
+        return {
+            "required": {
+                "vda_model": ("VDAMODEL", ),
+                "images": ("IMAGE", ),
+                "input_size": ("INT",{"default": 518}),
+                "max_res": ("INT",{"default": 1280, "min": 0, "tooltip": "Maximum resolution for the longer edge. Set to 0 to disable resizing (use if you have already downsized the images externally)."}),
+                "precision": (['fp16', 'fp32'], {"default": 'fp16'}),
+            },
+            "optional": {
+                "prev_context": ("VDACONTEXT", {"tooltip": "Context tensor from a previous run to maintain temporal consistency at the split point."}),
             },
         }
-    
-    RETURN_TYPES = ("DEPTHS",)
-    RETURN_NAMES =("depths", )
+
+    RETURN_TYPES = ("DEPTHS", "VDACONTEXT")
+    RETURN_NAMES = ("depths", "context")
     FUNCTION = "process"
     CATEGORY = "VideoDepthAnything"
 
-    def process(self, vda_model, images, input_size, max_res, precision):
+    def process(self, vda_model, images, input_size, max_res, precision, prev_context=None):
+        from .video_depth_anything.video_depth import INFER_LEN
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         vda_model.to(device)
-        pbar = ProgressBar(images.shape[0])
-        images_np = preprocess(images, max_res)
-        depths = vda_model.infer_video_depth(images_np, input_size=input_size, device=str(device), pbar=pbar, fp32= True if precision == 'fp32' else False)
+
+        images_np = preprocess(images, max_res)  # uint8 [N, H, W, 3]
+
+        if prev_context is not None:
+            # prev_context is float32 [INFER_LEN, H, W, 3] in [0,1] — convert back to uint8 and prepend
+            context_np = (prev_context.numpy() * 255).astype(np.uint8)
+            images_np_input = np.concatenate([context_np, images_np], axis=0)
+            prepend_len = INFER_LEN
+        else:
+            images_np_input = images_np
+            prepend_len = 0
+
+        pbar = ProgressBar(images_np_input.shape[0])
+        depths = vda_model.infer_video_depth(images_np_input, input_size=input_size, device=str(device), pbar=pbar, fp32=True if precision == 'fp32' else False)
+
+        # Drop depths that correspond to the prepended context frames
+        depths = depths[prepend_len:]
+
+        # Save last INFER_LEN preprocessed frames as context for the next run
+        context = torch.from_numpy(images_np[-INFER_LEN:].astype(np.float32) / 255.0)
+
         vda_model.to(offload_device)
-        return (depths,)
+        return (depths, context)
+
+class VideoDepthAnythingSaveContext:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "context": ("VDACONTEXT", ),
+                    "filename": ("STRING", {"default": "vda_context"}),
+            },
+        }
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("path",)
+    FUNCTION = "save_context"
+    CATEGORY = "VideoDepthAnything"
+    OUTPUT_NODE = True
+
+    def save_context(self, context, filename):
+        out_dir = folder_paths.get_output_directory()
+        stem = filename[:-3] if filename.lower().endswith(".pt") else filename
+        path = os.path.join(out_dir, f"{stem}.pt")
+        torch.save(context, path)
+        print(f"[VideoDepthAnything] - Saved context to {path}")
+        return (path,)
+
+
+class VideoDepthAnythingLoadContext:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "path": ("STRING", {"default": ""}),
+                    "force_reload": ("BOOLEAN", {"default": True, "tooltip": "Always reload the file from disk, bypassing ComfyUI's cache. Keep enabled when the file may have been overwritten since the last run."}),
+                    "load_context": ("BOOLEAN", {"default": True, "tooltip": "If disabled, no context is loaded and the output is None — downstream Process node will run without prev_context."}),
+            },
+        }
+    RETURN_TYPES = ("VDACONTEXT",)
+    RETURN_NAMES = ("context",)
+    FUNCTION = "load_context"
+    CATEGORY = "VideoDepthAnything"
+
+    @classmethod
+    def IS_CHANGED(cls, path, force_reload, load_context):
+        if force_reload:
+            return float("nan")
+        return f"{path}|{load_context}"
+
+    def load_context(self, path, force_reload, load_context):
+        if not load_context:
+            print("[VideoDepthAnything] - load_context disabled, returning None")
+            return (None,)
+        context = torch.load(path, map_location="cpu")
+        print(f"[VideoDepthAnything] - Loaded context from {path}")
+        return (context,)
+
 
 class VideoDepthAnythingOutput:
     @classmethod
