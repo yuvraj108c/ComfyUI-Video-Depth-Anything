@@ -3,6 +3,7 @@
 # ComfyUI Video Depth Anything
 <a href="https://arxiv.org/abs/2501.12375"><img src='https://img.shields.io/badge/arXiv-Video Depth Anything-red' alt='Paper PDF'></a>
 <a href='https://videodepthanything.github.io'><img src='https://img.shields.io/badge/Project_Page-Video Depth Anything-green' alt='Project Page'></a>
+<a href="https://cloud.swmgpu.com/w/samofvaani/reangle-reshoot-4d-camera-studio"><img src='https://img.shields.io/badge/swm_cloud-Video%20Depth%20Anything-blue' alt='swm cloud'></a>
 
 This project is an unofficial ComfyUI implementation of [Video Depth Anything](https://github.com/DepthAnything/Video-Depth-Anything),  for depth estimation on long videos without compromising quality, consistency, or generalization ability.
 
@@ -42,6 +43,7 @@ pip install -r requirements.txt
 
 ## Usage
 - Load [example workflow](workflows/video_depth_anything.json) 
+- *(Optional)* Launch pre-loaded on [**swm cloud**](https://cloud.swmgpu.com/w/samofvaani/reangle-reshoot-4d-camera-studio) with `ComfyUI-Video-Depth-Anything`, `video_depth_anything_vits.pth`, and ready-to-run depth & 3D/4D camera re-shoot workflows.
 - Models will download automatically to `/ComfyUI/models/videodepthanything`. 
 - You can also download them manually from the [official repository](https://github.com/DepthAnything/Video-Depth-Anything?tab=readme-ov-file#pre-trained-models) to that same directory.
 - Supported models: 'video_depth_anything_vits.pth', 'video_depth_anything_vitb.pth', 'video_depth_anything_vitl.pth', 'metric_video_depth_anything_vits.pth', 'metric_video_depth_anything_vitb.pth', 'metric_video_depth_anything_vitl.pth'
